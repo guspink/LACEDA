@@ -1,7 +1,8 @@
 .venv/
-_pycache_/
+__pycache__/
 *.pyc
 data/*
 !data/.gitkeep
 output/*
 !output/.gitkeep
+!output/resultado_final.csv

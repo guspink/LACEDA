@@ -95,7 +95,8 @@ def preparar_cnefe(df: pd.DataFrame) -> pd.DataFrame:
   titulo = _mapear_unicos(df[c["titulo"]], lambda v: normalizar_texto(v, False)).fillna("")
   nome = _mapear_unicos(df[c["nome"]], lambda v: normalizar_texto(v, False)).fillna("")
   out["tipo"] = tipo
-  out["nome_valido"] = ~nome.isin(["", "SEM DENOMINACAO", "SEM NOME"])
+  padrao_generico = r"^(?:SEM\s+DENO|SEM\s+NOME|PROJETAD|RUA\s+PROJETAD)"
+  out["nome_valido"] = ~nome.str.upper().str.contains(padrao_generico, regex=True, na=False) & ~nome.isin(["", "SEM DENOMINACAO", "SEM NOME"])
   nome_completo = (titulo + " " + nome).str.strip()
   out["street_nome_key"] = nome_completo.map(chave_comparacao)
   out["street_full_key"] = (tipo + " " + nome_completo).str.strip().map(chave_comparacao)

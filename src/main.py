@@ -96,9 +96,14 @@ def main(argv=None):
   ap.add_argument("--cache-dir", default="data/cache", help="Cache do parquet filtrado (engine spark)")
   ap.add_argument("--minimo", action="store_true",
           help="Saida enxuta: base original + setor_censitario_encontrado + status_match")
+  ap.add_argument("--preencher-ambiguo", action=argparse.BooleanOptionalAction,
+          default=config.PREENCHER_SETOR_EM_AMBIGUO,
+          help="Se True, preenche o melhor palpite em casos ambiguos; se False, deixa vazio.")
   ap.add_argument("--force", action="store_true", help="Refaz o cache mesmo se existir")
   a = ap.parse_args(argv)
   logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+  if a.preencher_ambiguo is not None:
+    config.PREENCHER_SETOR_EM_AMBIGUO = a.preencher_ambiguo
   try:
     df = executar(a.cnefe, a.busca, a.sep, a.encoding, a.engine, a.cache_dir, a.force)
   except (FileNotFoundError, RuntimeError) as e:

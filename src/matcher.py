@@ -4,15 +4,17 @@ Ideia central: o resultado so e AMBIGUO se os candidatos restantes pertencem a S
 Varios imoveis empatados no mesmo setor continuam sendo um MATCH valido.
 """
 from dataclasses import dataclass
+import re
 
 import pandas as pd
 
 from . import config
 from .normalize import (chave_comparacao, normalizar_cep, normalizar_municipio,
-            normalizar_texto, parse_numero, separar_tipo)
+            normalizar_texto, parse_numero, separar_tipo, tipos_compativeis, TITULOS)
 from .similarity import pontuar, similaridade
 
 OK, AMB, NAO = config.STATUS_OK, config.STATUS_AMBIGUO, config.STATUS_NAO
+PADRAO_GENERICO = re.compile(r"^(SEM\s+DENO|SEM\s+NOME|PROJETAD|RUA\s+PROJETAD)", re.IGNORECASE)
 
 
 @dataclass
@@ -129,12 +131,18 @@ def _escolher_setor(rows: pd.DataFrame, q: Consulta, idx: "IndiceMunicipio"):
 
 def _casar_rua(q: Consulta, idx: IndiceMunicipio):
   ruas = idx.ruas
-  if ruas.empty or not q.nome_key:
+  if ruas.empty or not q.nome_key or PADRAO_GENERICO.search(q.nome_key):
     return None
   tipos = ruas["tipo"].tolist()
  # Compara o NOME (sem o tipo): comparar com o tipo junto inflava o score
  # (FAZENDA BICO x FAZENDA ANGICO compartilham 'FAZENDA').
   pontos = pontuar(q.nome_key, ruas["street_nome_key"].tolist())
+  # Tolera omissao de titulos honorificos (DOUTOR, PROFESSOR...) no CNEFE:
+  titulos_valores = set(TITULOS.values())
+  nome_sem_titulos = " ".join(t for t in q.nome_key.split() if t not in titulos_valores)
+  if nome_sem_titulos and nome_sem_titulos != q.nome_key:
+    p_sem_titulos = pontuar(nome_sem_titulos, ruas["street_nome_key"].tolist())
+    pontos = [max(a, b) for a, b in zip(pontos, p_sem_titulos)]
   if not q.tipo: # tipo desconhecido na consulta: o nome pode incluir o tipo
     p_full = pontuar(q.full_key, ruas["street_full_key"].tolist())
     pontos = [max(a, b) for a, b in zip(pontos, p_full)]
@@ -143,7 +151,7 @@ def _casar_rua(q: Consulta, idx: IndiceMunicipio):
 
   base = []
   for i, s in enumerate(pontos):
-    if q.tipo and tipos[i] and q.tipo != tipos[i]:
+    if q.tipo and tipos[i] and not tipos_compativeis(q.tipo, tipos[i]):
       s -= config.PENALIDADE_TIPO_DIFERENTE
     base.append(s)
   top = sorted(range(len(ruas)), key=lambda i: base[i], reverse=True)[:config.TOP_K_RUAS]
